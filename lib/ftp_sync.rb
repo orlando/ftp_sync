@@ -96,10 +96,46 @@ class FtpSync
     close!
     raise Net::FTPPermError
   end
-  
+
+  def remote_dir_exist?(dir)
+    path = dir.split("/")
+    find = path.pop
+    path = path.join( "/" )
+    path = "." if path == ""
+    altdir = dir
+    altdir = dir[2..-1] if dir[0,2] == "./"
+    
+    return true if dir == "."
+    
+    begin
+      @connection.nlst(path).include?(find) or @connection.nlst(path).include?(dir) or @connection.nlst(path).include?(altdir)
+    rescue Net::FTPTempError
+      return false
+    end
+  end
+
+  def mkdir_p(dir)
+    path = dir.split( "/" )
+    mkpath = path.shift
+    begin
+      @connection.mkdir(mkpath) unless mkpath == "" || mkpath.nil?
+    rescue Net::FTPPermError => e
+      raise Net::FTPPermError, e.message, caller unless remote_dir_exist?(mkpath)
+    end
+    path.each do |d|
+      mkpath = [mkpath, d].join( "/" )
+      begin
+        @connection.mkdir(mkpath)
+      rescue Net::FTPPermError => e
+        raise Net::FTPPermError, e.message, caller unless remote_dir_exist?(mkpath)
+      end
+    end
+  end
+
   # Recursively push a local directory of files onto an FTP server
   def push_dir(localpath, remotepath)
     connect!
+    self.mkdir_p(remotepath)
     
     Dir.glob(File.join(localpath, '**', '*')) do |f|
       f.gsub!("#{localpath}/", '')
