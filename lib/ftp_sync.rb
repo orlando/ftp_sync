@@ -133,11 +133,19 @@ class FtpSync
   end
 
   # Recursively push a local directory of files onto an FTP server
-  def push_dir(localpath, remotepath)
+  def push_dir(localpath, remotepath, opts={})
     connect!
     self.mkdir_p(remotepath)
     
-    Dir.glob(File.join(localpath, '**', '*')) do |f|
+    if !!opts[:hidden_files]
+      files_array = Dir.glob(File.join(localpath, '**', '*'),File::FNM_DOTMATCH).uniq
+      # deletes '..' and '.' directories
+      files_array = files_array.delete_if {|file| file.split('/').last.gsub('.','').empty?}
+    else
+      files_array = Dir.glob(File.join(localpath, '**', '*'))
+    end
+
+    files_array.each do |f|
       f.gsub!("#{localpath}/", '')
       local = File.join localpath, f
       remote = "#{remotepath}/#{f}".gsub(/\/+/, '/')
